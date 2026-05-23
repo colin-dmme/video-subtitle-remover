@@ -5,126 +5,129 @@ cd /d "%~dp0"
 
 echo.
 echo ================================================================
-echo   Video Subtitle Remover - Auto Setup
+echo   Video Subtitle Remover - Tu dong cai dat
 echo ================================================================
 echo.
 
 rem ----------------------------------------------------------------
-rem STEP 1: Check if running from correct folder
+rem Kiem tra chay dung thu muc
 rem ----------------------------------------------------------------
 if not exist "%~dp0gui.py" (
-    echo [ERROR] Cannot find gui.py in this folder.
-    echo         Run setup.bat from the project root folder.
-    pause
-    exit /b 1
+    echo [LOI] Khong tim thay gui.py.
+    echo       Chay setup.bat tu thu muc goc cua project.
+    goto :end_error
 )
 if not exist "%~dp0start_vsr_gui.bat" (
-    echo [ERROR] Cannot find start_vsr_gui.bat in this folder.
-    pause
-    exit /b 1
+    echo [LOI] Khong tim thay start_vsr_gui.bat.
+    goto :end_error
 )
 
 rem ----------------------------------------------------------------
-rem STEP 2: Check model files and warn about missing ones
+rem Kiem tra file AI model
 rem ----------------------------------------------------------------
-echo [1/3] Checking AI model files...
+echo [1/3] Kiem tra AI model files...
 echo.
 
-set "MODELS_OK=1"
-set "MISSING_MODELS="
+set "MODELS_MISSING=0"
 
-set "MODELS[0]=backend\models\big-lama\big-lama.pt"
-set "MODELS[1]=backend\models\propainter\ProPainter.pth"
-set "MODELS[2]=backend\models\propainter\raft-things.pth"
-set "MODELS[3]=backend\models\propainter\recurrent_flow_completion.pth"
-set "MODELS[4]=backend\models\sttn-auto\infer_model.pth"
-set "MODELS[5]=backend\models\sttn-det\sttn.pth"
-set "MODELS[6]=backend\models\V5\ch_det\inference.pdiparams"
-set "MODELS[7]=backend\models\V5\ch_det_fast\inference.pdiparams"
-
-for /L %%i in (0,1,7) do (
-    if not exist "%~dp0!MODELS[%%i]!" (
-        echo   [MISSING] !MODELS[%%i]!
-        set "MODELS_OK=0"
-    ) else (
-        echo   [OK]      !MODELS[%%i]!
-    )
-)
+call :check_model "backend\models\big-lama\big-lama.pt"
+call :check_model "backend\models\propainter\ProPainter.pth"
+call :check_model "backend\models\propainter\raft-things.pth"
+call :check_model "backend\models\propainter\recurrent_flow_completion.pth"
+call :check_model "backend\models\sttn-auto\infer_model.pth"
+call :check_model "backend\models\sttn-det\sttn.pth"
+call :check_model "backend\models\V5\ch_det\inference.pdiparams"
+call :check_model "backend\models\V5\ch_det_fast\inference.pdiparams"
 
 echo.
-if "!MODELS_OK!"=="0" (
-    echo [WARNING] Some AI model files are missing.
-    echo          Models are NOT included in the git repository because they
-    echo          are too large for GitHub (up to 196 MB per file).
+if "!MODELS_MISSING!"=="1" (
+    echo [CANH BAO] Mot so file model dang thieu.
+    echo            Model qua lon de dua len GitHub ^(len den 196 MB/file^).
+    echo            Can copy thu muc "backend\models\" tu may cu sang may nay.
     echo.
-    echo          Copy the entire "backend\models\" folder from the source
-    echo          machine to fix this. The app may crash or run in limited
-    echo          mode without these files.
-    echo.
-    echo          Continue setup anyway? (Y to continue, any other key to exit)
-    set /p "CONTINUE=>>> "
-    if /I not "!CONTINUE!"=="Y" (
-        echo Setup cancelled.
-        pause
-        exit /b 0
-    )
+    set /p "CONTINUE=Tiep tuc cai dat khong co model? ^(Y/N^): "
+    if /I not "!CONTINUE!"=="Y" goto :end_cancel
     echo.
 ) else (
-    echo   All model files are present.
+    echo   Tat ca model files da co day du.
     echo.
 )
 
 rem ----------------------------------------------------------------
-rem STEP 3: Detect GPU and install Python environment
+rem Cai dat moi truong Python
 rem ----------------------------------------------------------------
-echo [2/3] Setting up Python environment and dependencies...
-echo       (This may take 10-30 minutes on first run — downloading AI packages)
+echo [2/3] Cai dat Python + thu vien...
+echo       ^(Lan dau co the mat 10-30 phut - tai cac goi AI lon^)
 echo.
 
-rem Pass through any flags the user gave this script
-call "%~dp0start_vsr_gui.bat" --setup-only %*
+call "%~dp0start_vsr_gui.bat" --setup-only
 if errorlevel 1 (
     echo.
-    echo [ERROR] Environment setup failed. See errors above.
-    pause
-    exit /b 1
+    echo [LOI] Cai dat that bai. Xem chi tiet o tren.
+    goto :end_error
 )
 
 rem ----------------------------------------------------------------
-rem STEP 4: Final summary
+rem Ket qua
 rem ----------------------------------------------------------------
 echo.
-echo [3/3] Verifying setup...
+echo [3/3] Ket qua...
 echo.
 
-rem Check which venv was created
 set "FOUND_VENV="
 for %%V in (.venv-blackwell .venv-cuda126 .venv-cuda118 .venv videoEnv venv) do (
-    if exist "%~dp0%%V\Scripts\python.exe" (
-        if not defined FOUND_VENV set "FOUND_VENV=%%V"
+    if not defined FOUND_VENV (
+        if exist "%~dp0%%V\Scripts\python.exe" set "FOUND_VENV=%%V"
     )
 )
 
 if defined FOUND_VENV (
-    echo   Virtual environment : !FOUND_VENV!
+    echo   Virtual env : !FOUND_VENV!
 ) else (
-    echo   [WARNING] No virtual environment found — setup may have failed.
+    echo   [CANH BAO] Khong tim thay virtual environment.
 )
 
+set "GPU_INFO=Khong co (che do CPU)"
 where nvidia-smi >nul 2>nul
 if not errorlevel 1 (
     for /f "delims=" %%G in ('nvidia-smi --query-gpu^=name --format^=csv^,noheader^,nounits 2^>nul') do (
-        echo   GPU detected        : %%G
-        goto :gpu_done
+        set "GPU_INFO=%%G"
+        goto :show_gpu
     )
 )
-echo   GPU detected        : None (CPU mode)
-:gpu_done
+:show_gpu
+echo   GPU         : !GPU_INFO!
 
 echo.
 echo ================================================================
-echo   Setup complete! Run start_vsr_gui.bat to launch the app.
+echo   XONG! Chay start_vsr_gui.bat de mo ung dung.
 echo ================================================================
 echo.
+goto :end_ok
+
+rem ----------------------------------------------------------------
+rem Subroutine kiem tra tung file model
+rem ----------------------------------------------------------------
+:check_model
+if exist "%~dp0%~1" (
+    echo   [CO]     %~1
+) else (
+    echo   [THIEU]  %~1
+    set "MODELS_MISSING=1"
+)
+exit /b 0
+
+:end_ok
 pause
 exit /b 0
+
+:end_cancel
+echo.
+echo Da huy. Chay lai setup.bat sau khi copy thu muc backend\models\.
+pause
+exit /b 0
+
+:end_error
+echo.
+pause
+exit /b 1
