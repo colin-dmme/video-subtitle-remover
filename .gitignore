@@ -98,7 +98,8 @@ modules.xml
 .LSOverride
 
 # Icon must end with two \r
-Icon
+# (macOS special file — narrowed to avoid matching ui/icon/ on Windows)
+Icon?
 
 
 # Thumbnails
